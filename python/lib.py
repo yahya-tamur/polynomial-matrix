@@ -1,3 +1,6 @@
+from __future__ import print_function
+from functools import reduce
+import builtins as __builtin__
 from typing import Callable, TypeVar, List
 import re
 
@@ -93,17 +96,23 @@ def pm_print(a: NPM) -> str:
 
     for i in range(len(a)):
         for j in range(len(a[0])):
+            first = True
             for k in range(len(a[i][j])):
                 s[i][j][k] = st(a[i][j][k], k)
                 l = len(s[i][j][k])
                 if k > 0:
                     if (a[i][j][k] > 0):
-                        s[i][j][k] = ' + ' + s[i][j][k]
+                        if not first:
+                            s[i][j][k] = ' + ' + s[i][j][k]
+                        else:
+                            s[i][j][k] = '   ' + s[i][j][k]
                     if (a[i][j][k] == 0):
                         s[i][j][k] = '   ' + s[i][j][k]
                     if (a[i][j][k] < 0):
                         s[i][j][k] = ' - ' + s[i][j][k]
                 s[i][j][k] = ' '*(ccl[j][k] - l) + s[i][j][k]
+                if (a[i][j][k] != 0):
+                    first = False
             s[i][j] = ''.join(s[i][j])
             cl[j] = max(cl[j], len(s[i][j]))
 
@@ -113,11 +122,9 @@ def pm_print(a: NPM) -> str:
         s[i] = '│ ' + (' │ '.join(s[i])) + ' │\n'
 
     line = lambda l,m,r: f'{l}─'+f'─{m}─'.join(['─'*n for n in cl])+f'─{r}\n'
-    s = line('┌','┬','┐') + line('├','┼','┤').join(s) + line('└','┴','┘')
-    print(s,end="")
-    return(s)
+    return(line('┌','┬','┐') + line('├','┼','┤').join(s) + line('└','┴','┘'))
 
-interp_re = re.compile(r"(?P<num>-?\d+)|(?P<bar>\|)|(?P<nl>\n)");
+interp_re = re.compile(r"(?P<num>-?\d+)|(?P<bar>\.)|(?P<nl>\n|\|)");
 
 def pm_i(s: str) -> NPM :
     init = 0
@@ -137,5 +144,91 @@ def pm_i(s: str) -> NPM :
             del ans[-1]
         else:
             break
-
     return(ans)
+
+def pm_add(a: NPM, b: NPM) -> NPM:
+    return [[p_add(a[i][j],b[i][j]) for j in range(len(a[0]))] for i in range(len(a))]
+
+def pm_scalar(s: NumPoly, a: NPM) -> NPM:
+    ans = [[[] for _ in range(len(a[0]))] for _ in range(len(a))]
+    for i in range(len(a)):
+        for j in range(len(a[0])):
+            ans[i][j] = p_mul(s,a[i][j])
+    return ans
+
+def pm_I(n: int) -> NPM:
+    return [[[1] if i == j else [] for i in range(n)] for j in range(n)]
+
+def pm_Ix(n: int) -> NPM:
+    return pm_scalar([0,1],pm_I(n))
+
+def perms_step(l, rest):
+    return [ ([x * ((-1) ** i)] + rest, l[:i] + l[i+1:] ) for i, x in enumerate(l)]
+
+def det3(n) -> []:
+    a = n.matrix
+    perms = [
+        ((0,1,2),1),
+        ((0,2,1),-1),
+        ((1,2,0),1),
+        ((1,0,2),-1),
+        ((2,0,1),1),
+        ((2,1,0),-1)
+    ]
+    ans = []
+
+    for (perm, sign) in perms:
+        factor = [sign]
+        for i in range(3):
+            factor = p_mul(factor, a[i][perm[i]])
+        ans = p_add(ans, factor)
+    return ans
+
+
+
+class pm:
+    matrix: NPM
+    def __init__(self, inp):
+        if isinstance(inp, str):
+            self.matrix = pm_i(inp)
+        else:
+            self.matrix = inp
+
+    def __str__(self, ):
+        return pm_print(self.matrix)
+
+    def __repr__(self, ):
+        return pm_print(self.matrix)
+
+    def __mul__(self, rhs):
+        if isinstance(rhs, pm):
+            return pm(pm_mul(self.matrix, rhs.matrix))
+        return pm(pm_scalar(rhs, self.matrix))
+
+    def __rmul__(self, lhs):
+        return self * lhs
+
+    def __add__(self, rhs):
+        return pm(pm_add(self.matrix, rhs.matrix))
+
+    def __sub__(self, rhs):
+        return pm(pm_add(self.matrix, pm_scalar([-1],rhs.matrix)))
+
+    def __xor__(self, rhs):
+        ans = I(len(self.matrix))
+        s = self
+        while rhs != 0:
+            if rhs & 1:
+                ans *= s
+            s *= s
+            rhs //= 2
+        return ans
+
+def I(n: int):
+    return pm(pm_I(n))
+
+def Ix(n: int):
+    return pm(pm_Ix(n))
+
+
+            
